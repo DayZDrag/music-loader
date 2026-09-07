@@ -1,0 +1,14 @@
+# User data and download output
+Music/
+downloaded.txt
+config.json
+
+# Bundled tools and environments
+venv/
+deno-x86_64-pc-windows-msvc/
+ffmpeg-8.1.2-essentials_build/
+*.exe
+
+# Python cache
+__pycache__/
+*.py[cod]

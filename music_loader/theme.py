@@ -1,0 +1,13 @@
+"""Единая палитра интерфейса."""
+
+BG = "#07111F"
+PANEL = "#0B1728"
+PANEL_2 = "#101F34"
+BLUE = "#147DFF"
+BLUE_HOVER = "#0F68D8"
+CYAN = "#00BFFF"
+TEXT = "#F2F7FF"
+TEXT_SECONDARY = "#7F96B2"
+GREEN = "#27D17F"
+RED = "#FF4D67"
+YELLOW = "#FFC857"
