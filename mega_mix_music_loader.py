@@ -4,6 +4,7 @@ import threading
 import json
 import os
 import random
+import re
 import shutil
 from pathlib import Path
 from tkinter import messagebox, simpledialog
@@ -200,6 +201,10 @@ class MusicLoader(ctk.CTk):
     # ========================================================
 
     def create_ui(self):
+        from music_loader.dashboard import build_dashboard
+
+        build_dashboard(self)
+        return
 
         # HEADER
         self.header = ctk.CTkFrame(
@@ -464,6 +469,17 @@ class MusicLoader(ctk.CTk):
             self.log.see("end")
         self.after(0, update)
 
+    def set_download_progress(self, value, text):
+        """Безопасно обновляет общий прогресс из фонового потока yt-dlp."""
+        value = max(0.0, min(1.0, value))
+        self.after(
+            0,
+            lambda: (
+                self.download_progress.set(value),
+                self.progress_label.configure(text=text),
+            ),
+        )
+
     # ========================================================
     # AUTHORS
     # ========================================================
@@ -573,6 +589,9 @@ class MusicLoader(ctk.CTk):
         playlists = self.config["authors"].get(
             self.current_author, []
         )
+        self.playlist_badge.configure(
+            text=f"{len(playlists)} плейлист(ов)"
+        )
 
         for index, playlist in enumerate(playlists):
 
@@ -640,7 +659,7 @@ class MusicLoader(ctk.CTk):
             widget.destroy()
 
         self.track_title.configure(text="TRACKS")
-        self.track_count.configure(text="0")
+        self.track_count.configure(text="0 треков")
 
     def refresh_tracks(self):
         self.clear_tracks()
@@ -665,7 +684,7 @@ class MusicLoader(ctk.CTk):
         )
 
         self.track_title.configure(text=name)
-        self.track_count.configure(text=f"{len(tracks)} MP3")
+        self.track_count.configure(text=f"{len(tracks)} треков")
 
         if not tracks:
             label = ctk.CTkLabel(
@@ -850,7 +869,9 @@ class MusicLoader(ctk.CTk):
         self,
         author,
         playlist,
-        url
+        url,
+        job_index=1,
+        job_total=1,
     ):
         if not YTDLP.exists():
             self.log_message(
@@ -865,6 +886,10 @@ class MusicLoader(ctk.CTk):
         self.log_message("")
         self.log_message(
             f"▶ {author} / {playlist}"
+        )
+        self.set_download_progress(
+            (job_index - 1) / job_total,
+            f"{job_index}/{job_total}  ·  {playlist}  ·  0%",
         )
 
         command = self.build_command(
@@ -890,6 +915,20 @@ class MusicLoader(ctk.CTk):
                 if line:
                     self.log_message(line)
 
+                progress_match = re.search(
+                    r"\[download\]\s+(\d+(?:\.\d+)?)%", line
+                )
+                if progress_match:
+                    playlist_progress = float(progress_match.group(1)) / 100
+                    overall_progress = (
+                        (job_index - 1 + playlist_progress) / job_total
+                    )
+                    self.set_download_progress(
+                        overall_progress,
+                        f"{job_index}/{job_total}  ·  {playlist}  ·  "
+                        f"{playlist_progress:.0%}",
+                    )
+
                 if self.stop_requested:
                     process.terminate()
                     break
@@ -897,6 +936,10 @@ class MusicLoader(ctk.CTk):
             process.wait()
 
             if process.returncode == 0:
+                self.set_download_progress(
+                    job_index / job_total,
+                    f"{job_index}/{job_total}  ·  Готово: {playlist}",
+                )
                 self.log_message(
                     f"✓ Готово: {playlist}"
                 )
@@ -920,6 +963,7 @@ class MusicLoader(ctk.CTk):
 
         self.downloading = True
         self.stop_requested = False
+        self.set_download_progress(0, "Подготовка загрузки…")
 
         self.set_status(
             "● DOWNLOADING",
@@ -947,7 +991,9 @@ class MusicLoader(ctk.CTk):
                     self.download_playlist_thread(
                         author,
                         playlist,
-                        url
+                        url,
+                        index,
+                        total,
                     )
 
                     self.after(
@@ -971,6 +1017,10 @@ class MusicLoader(ctk.CTk):
                 self.log_message("")
                 self.log_message(
                     "════════ DOWNLOAD COMPLETE ════════"
+                )
+                self.set_download_progress(
+                    1 if not self.stop_requested else 0,
+                    "Загрузка остановлена" if self.stop_requested else "Загрузка завершена",
                 )
 
         threading.Thread(
